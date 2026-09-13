@@ -1,13 +1,28 @@
 # Visual Studio Code Settings
 .vscode/
 
-# Built Firmware
-build/
-
 # Python
 __pycache__/
 *.pyc
 
-# OS
+# ESP-IDF build output
+build/
+**/build/
+
+# Component manager
+managed_components/
+**/managed_components/
+dependencies.lock
+**/dependencies.lock
+
+# IDE / editor
+.vscode/
+.idea/
+.clangd
+*.swp
+*.swo
+*~
+
+# OS junk
 .DS_Store
 Thumbs.db
