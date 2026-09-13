@@ -1,0 +1,13 @@
+# Visual Studio Code Settings
+.vscode/
+
+# Built Firmware
+build/
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
