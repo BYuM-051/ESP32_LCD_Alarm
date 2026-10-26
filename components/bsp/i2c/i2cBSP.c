@@ -1,15 +1,16 @@
-#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "user_config.h"
-#include "freertos/FreeRTOS.h"
+#include "esp_log.h"
 
 #include "i2cBSP.h"
 #include "allPins.h"
 
+#define TAG "[i2cBSP.c] "
+
 i2c_master_bus_handle_t i2c1_BusHandle = NULL;
 
-#define TAG "[i2c_bsp.c] "
+static const int i2cTransferTimeoutMs = 1000;
 
 static i2c_master_bus_config_t i2cBusConfig =
 {
@@ -23,64 +24,110 @@ static i2c_master_bus_config_t i2cBusConfig =
     }
 };
 
-bool i2cB2PInit(i2c_port_num_t i2cPort)
+bool i2cBSPInit(i2c_port_num_t i2cPort)
 {
-    i2cBusConfig.i2c_port = i2cPort;
-    if(i2c_new_master_bus(&i2cBusConfig, &i2c1_BusHandle) != ESP_OK)
+    if(i2c1_BusHandle != NULL)
     {
+        ESP_LOGW(TAG, "%s: Bus already initialized", __func__);
         return false;
     }
+
+    i2cBusConfig.i2c_port = i2cPort;
+
+    esp_err_t ret = i2c_new_master_bus(&i2cBusConfig, &i2c1_BusHandle);
+    if(ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: %s", __func__, esp_err_to_name(ret));
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Bus initialized: port=%d, SCL=%d, SDA=%d", (int)i2cPort, (int)i2cBusConfig.scl_io_num, (int)i2cBusConfig.sda_io_num);
+
     return true;
 }
 
-esp_err_t i2c_writr_buff(i2c_master_dev_handle_t dev_handle,int reg,uint8_t *buf,uint8_t len)
+esp_err_t i2c_writr_buff(i2c_master_dev_handle_t devHandle, int reg, const uint8_t *buf, uint8_t len)
 {
-    uint8_t *pbuf = NULL;
-    esp_err_t ret = i2c_master_bus_wait_all_done(i2c1_BusHandle,i2c_done_pdMS_TICKS);
-    if(ret != ESP_OK)
-    return ret;
+    if(devHandle == NULL || buf == NULL || len == 0 || reg < -1 || reg > UINT8_MAX)
+    {
+        ESP_LOGE(TAG, "%s: Invalid argument", __func__);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret;
+
     if(reg == -1)
     {
-        ret = i2c_master_transmit(dev_handle,buf,len,i2c_data_pdMS_TICKS);
+        ret = i2c_master_transmit(devHandle, buf, len, i2cTransferTimeoutMs);
     }
     else
     {
-        pbuf = (uint8_t*)malloc(len+1);
-        if(pbuf == NULL)
+        size_t transferLen = (size_t)len + 1;
+        uint8_t *transferBuf = malloc(transferLen);
+        if(transferBuf == NULL)
         {
+            ESP_LOGE(TAG, "%s: Buffer allocation failed", __func__);
             return ESP_ERR_NO_MEM;
         }
 
-        pbuf[0] = reg;
-        for(uint8_t i = 0; i<len; i++)
-        {
-            pbuf[i+1] = buf[i];
-        }
-        ret = i2c_master_transmit(dev_handle,pbuf,len+1,i2c_data_pdMS_TICKS);
-        free(pbuf);
-        pbuf = NULL;
+        transferBuf[0] = (uint8_t)reg;
+        memcpy(&transferBuf[1], buf, len);
+
+        ret = i2c_master_transmit(devHandle, transferBuf, transferLen, i2cTransferTimeoutMs);
+
+        free(transferBuf);
     }
+
+    if(ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: reg=%d, len=%u, %s", __func__, reg, (unsigned int)len, esp_err_to_name(ret));
+    }
+
     return ret;
 }
-esp_err_t i2c_master_write_read_dev(i2c_master_dev_handle_t dev_handle,uint8_t *writeBuf,uint8_t writeLen,uint8_t *readBuf,uint8_t readLen)
+
+esp_err_t i2c_master_write_read_dev(i2c_master_dev_handle_t devHandle, const uint8_t *writeBuf, uint8_t writeLen, uint8_t *readBuf, uint8_t readLen)
 {
-    esp_err_t ret = i2c_master_bus_wait_all_done(i2c1_BusHandle, i2c_done_pdMS_TICKS);
+    if(devHandle == NULL || writeBuf == NULL || readBuf == NULL || writeLen == 0 || readLen == 0)
+    {
+        ESP_LOGE(TAG, "%s: Invalid argument", __func__);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret = i2c_master_transmit_receive(devHandle, writeBuf, writeLen, readBuf, readLen, i2cTransferTimeoutMs);
     if(ret != ESP_OK)
-    return ret;
-    ret = i2c_master_transmit_receive(dev_handle,writeBuf,writeLen,readBuf,readLen,i2c_data_pdMS_TICKS);
+    {
+        ESP_LOGE(TAG, "%s: writeLen=%u, readLen=%u, %s", __func__, (unsigned int)writeLen, (unsigned int)readLen, esp_err_to_name(ret));
+    }
+
     return ret;
 }
-esp_err_t i2c_read_buff(i2c_master_dev_handle_t dev_handle,int reg,uint8_t *buf,uint8_t len)
+
+esp_err_t i2c_read_buff(i2c_master_dev_handle_t devHandle, int reg, uint8_t *buf, uint8_t len)
 {
-    uint8_t addr = 0;
-    esp_err_t ret = i2c_master_bus_wait_all_done(i2c1_BusHandle, i2c_done_pdMS_TICKS);
-    if(ret != ESP_OK)
-    return ret;
+    if(devHandle == NULL || buf == NULL || len == 0 || reg < -1 || reg > UINT8_MAX)
+    {
+        ESP_LOGE(TAG, "%s: Invalid argument", __func__);
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t ret;
+
     if(reg == -1)
-    {ret = i2c_master_receive(dev_handle, buf,len, i2c_data_pdMS_TICKS);}
+    {
+        ret = i2c_master_receive(devHandle, buf, len, i2cTransferTimeoutMs);
+    }
     else
-    {addr = (uint8_t)reg; ret = i2c_master_transmit_receive(dev_handle,&addr,1,buf,len,i2c_data_pdMS_TICKS);}
+    {
+        uint8_t addr = (uint8_t)reg;
+
+        ret = i2c_master_transmit_receive(devHandle, &addr, sizeof(addr), buf, len, i2cTransferTimeoutMs);
+    }
+
+    if(ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "%s: reg=%d, len=%u, %s", __func__, reg, (unsigned int)len, esp_err_to_name(ret));
+    }
+
     return ret;
 }
-
-
