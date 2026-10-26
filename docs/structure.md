@@ -102,3 +102,24 @@ If an upstream history is rewritten, use the old/new dependency boundaries with
 
 The RTC header represents alarm comparisons in seconds/minutes/hours/day/weekday;
 disabled comparisons use negative values. Calendar data is binary, not BCD.
+
+## Validation
+
+Checked with ESP-IDF 5.4.4 and the existing manifest, which resolved LVGL 9.6.0~1
+and esp_lcd_axs15231b 1.0.1~1 in the validation environment.
+
+- All 25 declared dependency edges across the 16 work branches have equivalent
+  patches present; the integration branch includes every work branch.
+- All application/component C blobs match the original main, WIP or LVGL draft.
+- CMake configuration and generation complete successfully.
+- All 18 added or changed headers compile individually as C17 and C++17 with
+  the ESP32-S3 toolchain. Existing LVGL configuration deprecation `#warning`
+  messages remain warnings; no project header errors were suppressed.
+- The existing I2C and backlight C sources compile to objects with the generated
+  ESP-IDF compile commands.
+- Application compilation still stops at `main/main.c:20`, because it includes
+  the removed `i2c_bsp.h`. A full firmware build and hardware test are not claimed.
+
+The isolated validation environment needed a process-ID fallback in its installed
+component manager because `/proc` did not expose its process namespace. This
+environment workaround is not a change to the project or its SDK source.
