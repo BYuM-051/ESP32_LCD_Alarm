@@ -1,12 +1,5 @@
-file(GLOB_RECURSE UISrcs CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/*.c"
-)
-
+# SplashScreen.c is currently empty; register the UI headers only.
 idf_component_register(
-    SRCS
-        ${UISrcs}
-    INCLUDE_DIRS
-        "./"
-    REQUIRES 
-        lvgl
+    INCLUDE_DIRS "."
+    REQUIRES lvgl__lvgl
 )

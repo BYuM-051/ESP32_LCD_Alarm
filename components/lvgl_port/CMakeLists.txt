@@ -1,10 +1,5 @@
+# The existing port files are unfinished; register the public headers only.
 idf_component_register(
-    SRCS
-        "lvgl_display.c"
-        "lvgl_input.c"
-        "lvgl_port.c"
-    REQUIRES
-        lvgl
-    INCLUDE_DIRS
-        "./"
+    INCLUDE_DIRS "."
+    REQUIRES lvgl__lvgl
 )
