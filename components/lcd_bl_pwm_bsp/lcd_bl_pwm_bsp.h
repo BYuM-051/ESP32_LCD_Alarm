@@ -1,6 +1,8 @@
 #ifndef LCD_BL_PWM_BSP_H
 #define LCD_BL_PWM_BSP_H
 
+#include <stdint.h>
+
 
 
 #define  LCD_PWM_MODE_0   (0xff-0)
